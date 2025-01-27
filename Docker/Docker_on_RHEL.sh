@@ -5,7 +5,9 @@ sudo dnf remove docker; docker-client; docker-client-latest; docker-common; dock
 #Set up the repository
 sudo dnf -y install dnf-plugins-core
 sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+# Simulate pressing Enter after the repository is added
+echo
 # To install the latest version, run
-sudo dnf install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 # Start Docker Engine.
 sudo systemctl enable --now docker

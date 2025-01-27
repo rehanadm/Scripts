@@ -1,17 +1,19 @@
 #!/bin/bash
 # update system packages
 apt-get update
-apt-get upgrade
+apt-get upgrade -y
 #  Install Required Packages
 apt install apt-transport-https ca-certificates curl software-properties-common
 # Add Docker’s Official GPG Key
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 # Add Docker’s Official Repository
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+# Simulate pressing Enter after the repository is added
+echo
 # Update Your Package List Again
 apt update
 # Install Docker
-apt install docker-ce
+apt install docker-ce -y
 # start Docker Installation
 systemctl start docker
 # Docker starts automatically on boot
