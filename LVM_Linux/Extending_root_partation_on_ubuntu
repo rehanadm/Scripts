@@ -1,0 +1,26 @@
+Extending Root partation
+
+1)ADDED DISK (SDB)
+
+# Reboot system
+# fdisk /dev/sdb
+n
+partation
+1
+enter
+enter
+t
+L
+83
+w
+# partprobe /dev/sdb
+# lsblk
+# pvcreate /dev/sdb1
+# pvdisplay
+# vgs
+# vgextend ubuntu-vg /dev/sdb1
+# vgs
+df -k
+# lvextend -L +14G /dev/mapper/ubuntu--vg-root
+# resize2fs /dev/mapper/ubuntu--vg-root
+# df -h

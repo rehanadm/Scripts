@@ -1,0 +1,816 @@
+1. Install and Configure UFW :-
+
+>> First, check if ufw is installed using following command.
+sudo dpkg --get-selections | grep ufw
+
+>> If it’s not installed, you can install it using apt command as shown below.
+sudo apt-get install ufw
+
+>> Before you use, you should check whether ufw is running or not. Use the following command to check it.
+sudo ufw status
+
+>> Enabling / Disabling ufw
+sudo ufw enable
+sudo ufw disable
+
+>> List the current ufw rules
+sudo ufw status verbose
+
+>> How to Add ufw rules
+sudo ufw allow ssh
+
+>> If you check the status again, you will see an output like this.
+sudo ufw status
+
+>> If you have a lot of rules, and want to put numbers on every rules on the fly, use parameter numbered.
+sudo ufw status numbered
+
+>> The first rule says that incoming connection to port 22 from Anywhere, both tcp or udp packets is allowed. 
+What if you want to allow tcp packet only? Then you can add the parameter tcp after the port number. Here’s an example with sample output.
+sudo ufw allow ssh/tcp
+
+>> Deny Access
+sudo ufw deny ftp
+
+>> Adding Specific Port
+sudo ufw allow
+
+>> It also possible for you to add port-range into the rule. If we want to open port from 2290 – 2300 with tcp protocol, then the command will be like this.
+sudo ufw allow 2290:2300/tcp
+
+>> while if you want to use udp, just use the following command.
+sudo ufw allow 2290:2300/udp
+
+>> Adding Specific IP
+sudo ufw allow from 192.168.0.104
+
+>> You can also use a subnet mask to wider the range.
+sudo ufw allow form 192.168.0.0/24
+
+>> As you can see, from parameter will only limit the source of connection. While the destination – which is represented by To column – is Anywhere. 
+You can also manage the destination using ‘To‘ parameter. Let’s see the sample to allow access to port 22 (ssh).
+sudo ufw allow to any port 22
+
+>> Combining Parameters
+sudo ufw allow from 192.168.0.104 proto tcp to any port 22
+
+>> Deleting Rules
+There are two methods of deleting rules.
+Method 1
+The below command will delete rules that match service ftp. So the 21/tcp which mean ftp port will be deleted.
+
+sudo ufw delete allow ftp
+
+Method 2
+But when you tried to delete the first rule at the above example using below command.
+
+sudo ufw delete allow ssh or sudo ufw delete allow 22/tcp
+
+>> Then you can do this trick. As we mentioned above, you can show the number of rule to indicate which rule that we want to delete. Let we show it to you.
+sudo ufw status numbered
+
+>> Then you can delete the first rule using. Press “y” will permanently delete the rule.
+sudo ufw delete 1
+
+>> How to Reset Rules
+sudo ufw reset
+
+>> Advanced Functionality
+As I stated above, the ufw firewall can able to do whatever that iptables can do. This is accomplished by using various sets of rules files, which are nothing more than iptables-restore appropriate text files. Fine tuning ufw and/or placing additional iptables commands not allowed via the ufw command is a matter of editing several text files.
+
+/etc/default/ufw: The main configuration for default policies, IPv6 support and kernel modules.
+/etc/ufw/before[6].rules: rules in these files are calculate before any rules added via the ufw command.
+/etc/ufw/after[6].rules: rules in these files are calculate after any rules added via the ufw command.
+/etc/ufw/sysctl.conf: kernel network tunables.
+/etc/ufw/ufw.conf: sets whether or not ufw is enabled on boot and sets the LOGLEVEL.
+
+===============================================================================================================================================================================================
+2. Secure Shared Memory :-
+
+>> Shared memory can be used in an attack against a running service, apache2 or httpd for example. To make it more secure, modify /etc/fstab using this command:
+sudo vi /etc/fstab
+tmpfs     /run/shm    tmpfs	defaults,noexec,nosuid	0	0
+
+>> You will need to reboot for this setting to take effect.
+If you want to make the changes wihtout rebooting, you can run:
+sudo mount -a
+
+>> This command will allow you to find which files and folders can be secured:
+sudo find / -perm -2 ! -type l -ls
+
+===============================================================================================================================================================================================
+3. Disable SSH Root Login and change SSH default Port :-
+
+>> In order to disable SSH root account, first log in to your server console with a normal account with root privileges by issuing the below commands.
+su serveradmin
+sudo su -   # Drop privileges to root account
+
+>> 	After you’ve logged in to console, open the main SSH configuration file for editing with your favorite text editor by issuing the below command. The SSH main configuration file is usually located in /etc/ssh/ directory in most of Linux distributions.
+sudo vi /etc/ssh/sshd_config
+
+>> In this file, search for the line “PermitRootLogin” and update the line to look like in the below file.
+PermitRootLogin no
+
+>> After you’ve made the above changes, save and close the file and restart the SSH daemon to apply changes by issuing one of the below commands, specific to your Linux distribution.
+systemctl restart sshd
+service sshd restart
+/etc/init.d/ssh restart
+
+>> In order to test if the new configuration has been successfully applied, try to login with root account to the server via SSH from a remote system by issuing the below command.
+
+>> Connect to your server via SSH.
+
+>> Switch to the root user.
+
+>> Run the following command:
+sudo vi /etc/ssh/sshd_config
+
+>> Locate the following line:
+Port 22
+
+>> Remove # and change 22 to your desired port number.
+>> Restart the sshd service by running the following command:
+service sshd restart
+
+================================================================================================================================================================================================
+4. Protect su by limiting access only to admin group.
+
+Method 1 
+
+>> Access can be restricted with pam_wheel.
+>> Open the /etc/pam.d/su and add there following line:
+auth   required   pam_wheel.so   group=yourgroup
+
+>> Alternatively, you can use:
+auth required pam_succeed_if.so user ingroup admin
+
+Method 2
+
+# chgrp admin /bin/su
+# chmod o-rwx /bin/su
+
+================================================================================================================================================================================================
+5. Harden network sysctl settings.
+
+Method 1
+
+>> Linux Kernel /etc/sysctl.conf Security Hardening with sysctl.
+>> The sysctl command is used to modify kernel parameters at runtime. 
+/etc/sysctl.conf is a text file containing sysctl values to be read in and set by sysct at boot time. To view current values, enter:
+
+# sysctl -a
+# sysctl -A
+# sysctl mib
+# sysctl net.ipv4.conf.all.rp_filter
+# sysctl -a --pattern 'net.ipv4.conf.(eth|wlan)0.arp'
+
+>> To load settings, enter:
+# sysctl -p
+
+Method 2
+
+>> Sample /etc/sysctl.conf for Linux server hardening
+>> Edit /etc/sysctl.conf or /etc/sysctl.d/99-custom.conf and update it as follows. 
+The file is documented with comments. However, I recommend reading the official Linux kernel sysctl tuning help file (see below):
+
+# The following is suitable for dedicated web server, mail, ftp server etc. 
+# ---------------------------------------
+# BOOLEAN Values:
+# a) 0 (zero) - disabled / no / false
+# b) Non zero - enabled / yes / true
+# --------------------------------------
+# Controls IP packet forwarding
+net.ipv4.ip_forward = 0
+ 
+# Do not accept source routing
+net.ipv4.conf.default.accept_source_route = 0
+ 
+# Controls the System Request debugging functionality of the kernel
+kernel.sysrq = 0
+ 
+# Controls whether core dumps will append the PID to the core filename
+# Useful for debugging multi-threaded applications
+kernel.core_uses_pid = 1
+ 
+# Controls the use of TCP syncookies
+# Turn on SYN-flood protections
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_synack_retries = 5
+ 
+########## IPv4 networking start ##############
+# Send redirects, if router, but this is just server
+# So no routing allowed 
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+ 
+# Accept packets with SRR option? No
+net.ipv4.conf.all.accept_source_route = 0
+ 
+# Accept Redirects? No, this is not router
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.all.secure_redirects = 0
+ 
+# Log packets with impossible addresses to kernel log? yes
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.default.secure_redirects = 0
+ 
+# Ignore all ICMP ECHO and TIMESTAMP requests sent to it via broadcast/multicast
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+ 
+# Prevent against the common 'syn flood attack'
+net.ipv4.tcp_syncookies = 1
+ 
+# Enable source validation by reversed path, as specified in RFC1812
+net.ipv4.conf.all.rp_filter = 1
+ 
+# Controls source route verification
+net.ipv4.conf.default.rp_filter = 1 
+ 
+########## IPv6 networking start ##############
+# Number of Router Solicitations to send until assuming no routers are present.
+# This is host and not router
+net.ipv6.conf.default.router_solicitations = 0
+ 
+# Accept Router Preference in RA?
+net.ipv6.conf.default.accept_ra_rtr_pref = 0
+ 
+# Learn Prefix Information in Router Advertisement
+net.ipv6.conf.default.accept_ra_pinfo = 0
+ 
+# Setting controls whether the system will accept Hop Limit settings from a router advertisement
+net.ipv6.conf.default.accept_ra_defrtr = 0
+ 
+#router advertisements can cause the system to assign a global unicast address to an interface
+net.ipv6.conf.default.autoconf = 0
+ 
+#how many neighbor solicitations to send out per address?
+net.ipv6.conf.default.dad_transmits = 0
+ 
+# How many global unicast IPv6 addresses can be assigned to each interface?
+net.ipv6.conf.default.max_addresses = 1
+ 
+########## IPv6 networking ends ##############
+ 
+#Enable ExecShield protection
+#Set value to 1 or 2 (recommended) 
+#kernel.exec-shield = 2
+#kernel.randomize_va_space=2
+ 
+# TCP and memory optimization 
+# increase TCP max buffer size setable using setsockopt()
+#net.ipv4.tcp_rmem = 4096 87380 8388608
+#net.ipv4.tcp_wmem = 4096 87380 8388608
+ 
+# increase Linux auto tuning TCP buffer limits
+#net.core.rmem_max = 8388608
+#net.core.wmem_max = 8388608
+#net.core.netdev_max_backlog = 5000
+#net.ipv4.tcp_window_scaling = 1
+ 
+# increase system file descriptor limit    
+fs.file-max = 65535
+ 
+#Allow for more PIDs 
+kernel.pid_max = 65536
+ 
+#Increase system IP port limits
+net.ipv4.ip_local_port_range = 2000 65000
+ 
+# RFC 1337 fix
+net.ipv4.tcp_rfc1337=1
+
+>> Reboot the machine soon after a kernel panic
+kernel.panic=10
+
+>> Addresses of mmap base, heap, stack and VDSO page are randomized
+kernel.randomize_va_space=2
+
+>> Ignore bad ICMP errors
+net.ipv4.icmp_ignore_bogus_error_responses=1
+
+>> Protects against creating or following links under certain conditions
+fs.protected_hardlinks=1
+fs.protected_symlinks=1
+
+===================================================================================================================================================================================================
+6. Enable/Disable Open(External) DNS recursion.
+
+>> Connect to your server via SSH (Secure Shell) using your root credentials. You can locate your root credentials via your Control Panel under the VPS Management section.
+
+>> After connecting to your server, check your named.conf file for any DNS recursion allow or disable settings.
+cat /etc/named.conf | grep "recursion"
+
+>> Open your named.conf file using any text editor, and check the settings for recursion.
+
+>> If you want to change the settings for external DNS recursion only, find the section name “external” and investigate the settings. 
+If the section is not available you can add the below lines to your named.conf file to disable the external DNS recursion.
+Place the below lines under the “options” section,
+
+allow-transfer {"none";};
+
+allow-recursion {"none";};
+
+recursion no;
+
+>> If you already have the external section, you can change its settings by changing the “recursion” value to “yes” or “no” depending on your needs.
+
+>> After configuring your changes, close the file. For saving on nano use CTRL + X type Y for yes, and Enter. For vi use :wq for saving your changes.
+
+>> Restart the DNS server in order for the changes to take effect. Please use the command below to restart your DNS service:
+service named restart
+
+=====================================================================================================================================================================================================
+7. Prevent/Enable IP Spoofing.
+
+>> The spoofing protection prevents your network from being the source of spoofed i.e. forged communications that are often used in DoS attacks.
+[root@deep] /# for f in /proc/sys/net/ipv4/conf/*/rp_filter; do
+              > echo 1 > $f
+              > done
+[root@deep] /#
+
+>> Add the above commands to the /etc/rc.d/rc.local script file and you'll not have to type it again the next time you reboot your system.
+
+>> Edit the /etc/sysctl.conf file and add the following line:
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.all.log_martians=1
+net.ipv4.conf.default.log_martians=1
+
+>> You must restart your network for the change to take effect. The command to manually restart the network is the following:
+[root@deep] /# /etc/rc.d/init.d/network restart
+
+======================================================================================================================================================================================================
+8. Harden PHP.
+
+>> open and edit php.ini using a text editor.
+sudo vi /etc/php.ini
+
+>> Edit Configuration Settings :
+Section 1: Remote Connections
+allow_url_fopen = 0
+allow_url_include = 0
+
+Section 2: Runtime Settings
+max_input_time = 30
+max_execution_time = 30
+memory_limit = 8M
+register_globals = off
+expose_php = 0
+cgi.force_redirect = 1
+
+Section 3: Input Data Restrictions
+post_max_size = 256K
+max_input_vars = 100
+
+Section 4: Error Handling
+display_errors = 0
+display_startup_errors = 0
+log_errors = 1
+error_log = /home/johndoe/error_log
+
+Section 5: Restrict File Access
+open_basedir = "/home/johndoe/public_html"
+open_basedir = "/home/johndoe/public_html:/var/lib/php/tmp_upload:/var/lib/php/session"
+
+Section 6: File Uploads
+file_uploads = 0
+file_uploads = 1
+upload_max_filesize = 1M
+upload_tmp_dir = /var/lib/php/tmp_upload
+
+Section 7: Session Security
+session.use_strict_mode = 1
+session.cookie_httponly = 1
+session.use_cookies = 1
+session.use_only_cookies = 1
+session.use_trans_sid = 0
+session.name = custom_session_id
+session.cookie_secure = 1
+session.referer_check = example.com
+session.save_path = "/var/lib/php/session"
+session.hash_function = sha512
+session.bug_compat_42 = 0
+session.bug_compat_warn = 0
+
+>> Disable Vulnerable Functions
+disable_functions = ini_set,php_uname,getmyuid,getmypid,passthru,leak,listen,diskfreespace,tmpfile,link,ignore_user_abord,shell_exec,dl,set_time_limit,exec,system,highlight_file,source,show_source,fpaththru,virtual,posix_ctermid,posix_getcwd,posix_getegid,posix_geteuid,posix_getgid,posix_getgrgid,posix_getgrnam,posix_getgroups,posix_getlogin,posix_getpgid,posix_getpgrp,posix_getpid,posix,_getppid,posix_getpwnam,posix_getpwuid,posix_getrlimit,posix_getsid,posix_getuid,posix_isatty,posix_kill,posix_mkfifo,posix_setegid,posix_seteuid,posix_setgid,posix_setpgid,posix_setsid,posix_setuid,posix_times,posix_ttyname,posix_uname,proc_open,proc_close,proc_get_status,proc_nice,proc_terminate,phpinfo,popen,curl_exec,curl_multi_exec,parse_ini_file,allow_url_fopen,allow_url_include,pcntl_exec,chgrp,chmod,chown,lchgrp,lchown,putenv
+
+>> Soap Cache
+soap.wsdl_cache_dir = /var/lib/php/soap_cache
+
+>> Restart PHP
+sudo systemctl php restart
+
+=========================================================================================================================================================================================================
+9. Install and Configure ModSecurity :-
+
+Step 1: Installing Apache Web server
+sudo apt-get update
+sudo apt-get install Apache2
+
+Step 2: Installing ModSecurity
+sudo apt-get install libapache2-mod-security2
+sudo service apache2 restart
+sudo apachectl -M | grep security
+
+>> You should get the below output:
+security2_module (shared)
+
+Step 3: Configuring ModSecurity
+sudo cp /etc/modsecurity/modsecurity.conf-recommended /etc/modsecurity/modsecurity.conf
+sudo nano /etc/modsecurity/modsecurity.conf
+
+>> Change the value of SecRuleEngine from DetectionOnly to On.
+SecRuleEngine = on
+
+>> Restart Apache for the changes to take effect.
+sudo systemctl restart apache2
+
+>> ModSecurity has default rules set located at /usr/share/modsecurity-crs directory. However, it is always recommended to download the rules set from GitHub:
+Before, you do this, rename the default rules directory:
+sudo mv /usr/share/modsecurity-crs /usr/share/modsecurity-crs.bk
+
+>> Then, download new rule set from GitHub using the command below:
+sudo git clone https://github.com/SpiderLabs/owasp-modsecurity-crs.git /usr/share/modsecurity-crs
+
+>> Copy the sample configuration file from the downloaded rules using the command below:
+sudo cp /usr/share/modsecurity-crs/crs-setup.conf.example /usr/share/modsecurity-crs/crs-setup.conf
+
+>> To get these rules working on Apache, you should edit the /etc/apache2/mods-enabled/security2.conf file using a nano editor.
+sudo nano /etc/apache2/mods-enabled/security2.conf
+
+>> Add the following two lines at the end
+IncludeOptional /usr/share/modsecurity-crs/*.conf
+IncludeOptional "/usr/share/modsecurity-crs/rules/*.conf
+
+>> Restart Apache:
+sudo systemctl restart apache2
+
+Step 4: Testing ModSecurity
+>> You can now try to execute malicious scripts on a browser and see if ModSecurity rules will be triggered. Enter the below URL on a browser. Remember to replace the IP address with the public IP address of your server or domain name.
+http://127.0.0.1/index.html?exec=/bin/bash
+
+>> You should get a forbidden error message:
+Forbidden You don't have permission to access / on this server. Apache/2.4.29 (Ubuntu) Server at 127.0.0.1 Port 80.
+
+===============================================================================================================================================================================================================
+10. Protect from DDoS attacks with Mod_Evasive:
+
+>> Debian / Ubuntu:
+apt-get install apache2-utils
+
+>> Install mod_evasive:
+Download the mod_evasive package, uncompress it, and install it using apxs:
+cd /usr/src
+wget https://www.zdziarski.com/blog/wp-content/uploads/2010/02/mod_evasive_1.10.1.tar.gz
+tar xzf mod_evasive_1.10.1.tar.gz
+cd mod_evasive
+apxs2 -cia mod_evasive20.c
+
+>> To add the mod_evasive configuration to your Apache configuration file, find the section appropriate to your Apache config:
+sudo vi /etc/apache2/apache2.conf
+# Include module configuration:
+Include mods-enabled/*.load
+Include mods-enabled/*.conf
+
+>> Below that section, add the mod_evasive configuration:
+<IfModule mod_evasive20.c>
+    DOSHashTableSize 3097
+    DOSPageCount 2
+    DOSSiteCount 50
+    DOSPageInterval 1
+    DOSSiteInterval 1
+    DOSBlockingPeriod 60
+    DOSEmailNotify <someone@somewhere.com>
+	DOSWhitelist 127.0.0.1
+    DOSWhitelist 127.0.0.*
+</IfModule>
+
+>> Restart Apache for your changes to take effect:
+/etc/init.d/apache2 restart
+
+===============================================================================================================================================================================================================
+11. Install and configure DenyHosts to scan logs and ban suspicious hosts.
+
+>> Step 1 – Install denyhosts
+sudo apt-get install denyhosts OR sudo apt install denyhosts
+
+>> Step 2 – White list your own IP address
+sudo vi /etc/hosts.allow
+sshd: whitelist-ip1, whitelist-ip2, ...., whitelist-ipN
+sshd: 202.54.1.1 , 203.54.2.3
+
+>> Configure denyhosts using /etc/denyhosts.conf
+sudo vi /etc/denyhosts.conf
+
+>> Make sure SECURE_LOG set as follows:
+SECURE_LOG = /var/log/auth.log
+HOSTS_DENY set as follows:
+HOSTS_DENY = /etc/hosts.deny
+
+>> To block only sshd:
+BLOCK_SERVICE  = sshd
+
+>> Set deny threshold limit for login attempts:
+DENY_THRESHOLD_INVALID = 5
+DENY_THRESHOLD_VALID = 10
+DENY_THRESHOLD_ROOT = 1
+DENY_THRESHOLD_RESTRICTED = 1
+
+>> To block incoming connections using the Linux firewall IPTABLES:
+IPTABLES = /sbin/iptables
+
+>> Restart the denyhosts service
+sudo systemctl restart denyhosts.service OR sudo /etc/init.d/denyhosts restart
+
+>> Enable the denyhosts service on Ubuntu Linux 16.04 LTS on boot time
+Type the following command:
+sudo systemctl enable denyhosts.service
+
+Step 4 – Watch for /var/log/denyhosts log file for errors
+sudo grep 'something' /var/log/denyhosts OR sudo tail -f /var/log/denyhosts
+
+Step 5 – How to see a list of blocked hosts
+sudo cat /etc/hosts.deny
+
+>> How do I enable centralized synchronization support?
+sudo vi /etc/denyhosts.conf
+SYNC_SERVER = http://xmlrpc.denyhosts.net:9911
+sudo systemctl restart denyhosts.service OR sudo /etc/init.d/denyhosts restart
+
+>> How do I start denyhosts service?
+sudo systemctl start denyhosts.service OR sudo /etc/init.d/denyhosts start
+
+>> How do I stop denyhosts service?
+sudo systemctl stop denyhosts.service OR sudo /etc/init.d/denyhosts stop
+
+=====================================================================================================================================================================================================
+12. Install and configure PSAD intrusion detection application:
+
+>> Download and install the latest version of PSAD.
+sudo su
+mkdir /tmp/.psad
+cd /tmp/.psad
+wget http://cipherdyne.org/psad/download/psad-2.4.3.tar.gz
+tar -zxvf psad-2.4.3.tar.gz
+cd psad-2.4.3
+./install.pl 
+cd /tmp
+rm -R .psad
+exit
+
+>> Edit the PSAD configuration file. 
+sudo vi /etc/psad/psad.conf
+EMAIL_ADDRESSES - change this to your email address.
+HOSTNAME - this is set during install - but double check and change to a FQDN if needed.
+ENABLE_AUTO_IDS - set this to Y if you could like PSAD to take action - read configuration instructions before setting this to Y.
+ENABLE_AUTO_IDS_EMAILS - set this to Y if you would like to receive email notifications of intrusions that are detected.
+
+>> Add iptables LOG rules for both IPv4 and IPv6.
+iptables -A INPUT -j LOG
+iptables -A FORWARD -j LOG
+ip6tables -A INPUT -j LOG
+ip6tables -A FORWARD -j LOG
+
+>> Reload and update PSAD.
+psad -R
+psad --sig-update
+psad -H
+
+>> To check the status of PSAD, open a Terminal Window and enter :
+psad --Status
+
+=====================================================================================================================================================================================================
+13. Check for rootkits using RKHunter:
+
+Step 1: Downloading Rkhunter
+# cd /tmp
+# wget http://downloads.sourceforge.net/project/rkhunter/rkhunter/1.4.2/rkhunter-1.4.2.tar.gz
+
+Step 2: Installing Rkhunter
+# tar -xvf rkhunter-1.4.2.tar.gz 
+# cd rkhunter-1.4.2
+# ./installer.sh --layout default --install
+
+Step 3: Updating Rkhunter
+# /usr/local/bin/rkhunter --update
+# /usr/local/bin/rkhunter --propupd
+
+Step 4: Setting Cronjob and Email Alerts
+Create a file called rkhunter.sh under /etc/cron.daily/, which then scans your file system every day and sends email notifications to your email id. Create following file with the help of your favourite editor.
+# vi /etc/cron.daily/rkhunter.sh
+
+>> Add the following lines of code to it and replace “YourServerNameHere” with your “Server Name” and “your@email.com” with your “Email Id“.
+#!/bin/sh
+(
+/usr/local/bin/rkhunter --versioncheck
+/usr/local/bin/rkhunter --update
+/usr/local/bin/rkhunter --cronjob --report-warnings-only
+) | /bin/mail -s 'rkhunter Daily Run (PutYourServerNameHere)' your@email.com
+
+>> Set execute permission on the file.
+# chmod 755 /etc/cron.daily/rkhunter.sh
+
+Step 5: Manual Scan and Usage
+# rkhunter --check
+
+>> The above command generates log file under /var/log/rkhunter.log with the checks results made by Rkhunter.
+# cat /var/log/rkhunter.log
+
+========================================================================================================================================================================================================
+14. Install and configure NMAP to scan open ports:
+
+>> Install Nmap on Linux
+sudo apt-get update
+sudo apt-get install nmap
+
+>> How To Scan Nmap Ports
+sudo nmap 192.168.0.1
+
+>> Replace the IP address with the IP address of the system you’re testing. This is the basic format for Nmap, and it will return information about the ports on that system.
+In addition to scanning by IP address, you can also use the following commands to specify a target:
+nmap www.hostname.com – To scan a host
+nmap 192.168.0.1-10 – To Scan a range of IP addresses (.1 – .10)
+nmap 192.168.0.1/13 – Runs Nmap on a subnet
+nmap –iL textlist.txt – To scan targets from a text file.
+
+>> Scan a Single Port, All, or Series
+Nmap can be used to scan a single port or a series of ports:
+Scan port 80 on the target system: nmap –p 80 192.168.0.1
+Scan ports 1 through 200 on the target system: nmap –p 1-200 192.168.0.1
+Scan (Fast) the most common ports: nmap –F 192.168.0.1
+To scan all ports (1 – 65535): nmap –p– 192.168.0.1
+
+>> Other Types of Nmap Port Scans
+Different types of scans can be performed:
+nmap –sT 192.168.0.1 – This scan uses TCP connect – it takes longer, but is more likely to connect
+nmap –sS 192.168.0.1 – This is the default SYN scan – it tests by performing only half of the TCP handshake.
+nmap –sU –p 80,130,255 192.168.0.1 – This instructs Nmap to scan UDP ports instead of TCP ports (the –p switch specifies ports 80, 130, and 255 in this example.)
+nmap –Pn –F 192.168.0.1 – Run a Fast scan on the target system, but bypass host discovery. (Host discovery uses ping, but many server firewalls do not respond to ping requests. This option forces the test without waiting for a reply that may not be coming.)
+
+>> The nmap utility can be used to detect the operating system of a particular target:
+nmap –A 192.168.0.1
+
+>> It can also be used to probe for the services that might be using different ports:
+nmap –sV 192.168.0.1
+
+>> Common Ports
+Here is a brief list of standard ports and their designations:
+
+21 – FTP
+22 – SSH
+25 – SMTP (sending email)
+53 – DNS (domain name service)
+80 – HTTP (web server)
+110 – POP3 (email inbox)
+123 – NTP (Network Time Protocol)
+143 – IMAP (email inbox)
+443 – HTTPS (secure web server)
+465 – SMTPS (send secure email)
+631 – CUPS (print server)
+993 – IMAPS (secure email inbox)
+995 – POP3 (secure email inbox)
+
+=============================================================================================================================================================================================================================
+15. Analyze system logs using LogWatch:
+
+>> Install Logwatch and Sendmail
+apt-get update && apt-get upgrade
+apt-get install logwatch sendmail-bin sendmail
+
+>> Log Directories:
+sudo vi /usr/share/logwatch/default.conf/logwatch.conf
+LogDir = /var/log
+LogDir = /var/www/example.com/logs
+
+>> Email Logwatch Digest:
+sudo vi /usr/share/logwatch/default.conf/logwatch.conf
+MailTo = root
+
+>> Save Logwatch Digest to File:
+Logwatch digests can also be saved to a file on your system.
+Change the Output value to file.
+Find and uncomment (remove the hashmark [#]) the Filename value. Set the path and filename in which you wish to save your Logwatch digests.
+
+>> Run Logwatch:
+Run Logwatch Manually
+Logwatch can be run manually at any time by inputting the logwatch command to your console. This command can be appended with a number of options to change the default output to suit your needs:
+
+--detail: Can be set to low, med, high, or any numerical values between 1 and 10. Defines how detailed the report will be.
+--logdir: The directory containing the log files you wish to gain reports on.
+--service: The service definition that you wish to report on.
+--output: How you want the file to be sent: Standard output (stdout), mail, or file.
+--format: Plain text or HTML.
+--mailto: The local user or email address to send the report to.
+
+>> Run Logwatch through Cron
+1. Open the crontab:
+crontab -e
+
+2. Add a line for Logwatch. The following code is configured to run at 00:30 each day:
+sudo vi /etc/crontab
+30 0  * * *          /usr/sbin/logwatch
+
+=============================================================================================================================================================================================================================
+16. Install and configure SELinux:
+
+>> Remove AppArmor :
+1. Stop the AppArmor script in /etc/init.d/
+sudo /etc/init.d/apparmor stop
+
+2. Purge AppArmor from the system.
+apt purge apparmor
+
+3. Update and reboot your system:
+apt update && upgrade -yuf
+reboot
+
+>> Install SELinux:
+1. Install the SELinux package and reboot the system:
+apt install selinux
+reboot
+
+2. You can determine whether or not SELinux is enforcing security on your system by trying to set SELinux to enforcing mode.
+root@ubuntu:~# setenforce 1
+root@ubuntu:~# getenforce
+Enforcing
+
+3. To maintain enforcing mode after reboot, modify the SELinux configuration file in /etc/selinux/config from the default SELINUX=permissive to SELINUX=enforcing:
+sudo vi /etc/selinux/config
+SELINUX=enforcing
+
+=================================================================================================================================================================================================================
+17. Install and configure Tiger security audit and intrusion tool:
+
+>> Install Tiger Security Tool in Linux.
+sudo apt install tiger 
+OR
+$ wget  -c  http://download.savannah.gnu.org/releases/tiger/tiger-3.2rc3.tar.gz
+$ tar -xzf tiger-3.2rc3.tar.gz
+$ cd tiger-3.2/
+$ sudo ./tiger
+
+>> By default all checks are enabled, in the tigerrc file and you can edit it using a CLI editor of your liking to enable only the checks you are interested in:
+Security report is in `log//security.report.tecmint.181229-11:12'.
+
+>> You can view the contents of the security report file using cat command.
+$ sudo cat log/security.report.tecmint.181229-11\:12
+
+>> If you just want more information on a specific security message, run the tigexp (TIGer EXPlain) command and provide the msgid as an argument, where “msgid” is the text inside the [] associated with each message.
+For example, to get more information about the following messages, where [acc001w] and [path009w] are the msgids:
+
+Simply run these commands:
+$ sudo ./tigexp acc015w
+$ sudo ./tigexp path009w
+
+>> If you want to insert the explanations (more information on a particular message generated by tiger) in the report, you can either run tiger with the -E flag.
+$ sudo ./tiger -E 
+
+>> Or if you have already run it, then use tigexp command with the -F flag to specify the report file, for example:
+$ sudo ./tigexp -F log/security.report.tecmint.181229-11\:12
+
+>> To generate a separate explanation file from a report file, run the following command (where -f is used to specify the report file):
+$ sudo ./tigexp -f log/security.report.tecmint.181229-11\:12
+
+>> As you can see, installing tiger is not necessary. However, if you want to install it on your system for purposes of convenience, run the following commands (use ./configure – -help to check configure script options):
+$ ./configure
+$ sudo make install
+
+>> For more information, see the man pages under the ./man/ sub-directory, and use the cat command to view them. But if you have installed the package, run:
+$ man tiger 
+$ man tigerexp
+
+==================================================================================================================================================================================================================
+18. Force users to use strong Password Policies :
+
+sudo apt-get install libpam-cracklib
+
+sudo cp /etc/pam.d/common-password /home/sk/
+
+>> Now, edit /etc/pam.d/common-password file:
+sudo nano /etc/pam.d/common-password
+
+>> Find the following line and edit or change it as shown below.
+password required pam_cracklib.so try_first_pass retry=3 minlen=12 lcredit=1 ucredit=1 dcredit=2 ocredit=1 difok=2 reject_username
+
+>> Check the following example.
+password required pam_cracklib.so minlen=8 lcredit=-1 ucredit=-1 dcredit=-2 ocredit=-1 difok=2 reject_username
+
+>> Check or verify the password complexity
+Once you defined the password policy, check whether it’s working or not.
+Let us a assign simple password that doesn’t meet the password policy and see what happens.
+To change or assign passwd, run:
+passwd
+
+===================================================================================================================================================================================================================
+
+
+
+
+
+
+
+
+
+

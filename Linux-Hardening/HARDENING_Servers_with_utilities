@@ -1,0 +1,857 @@
+						LINUX-SERVERS HARDENING & SECURITY
+===================================================================================================================
+All of the security procedures and technologies currently available cannot guarantee that any systems are completely safe from intrusion. 
+>>Routers help secure gateways to the Internet. 
+>>Firewalls help secure the edge of the network. 
+>>Virtual Private Networks safely pass data in an encrypted stream. 
+>>Intrusion detection systems warn you of malicious activity.
+===================================================================================================================
+ ## Servers Supported --> CentOS, RHEL/RedHat  
+===================================================================================================================
+					 		INDEX 
+===================================================================================================================
+
+1.Remove unnecessary packages
+2.Verifying Signed Packages
+3.Passwords passphrase
+4.Configuring Password Aging:
+5.Locking Virtual Consoles Using vlock
+6.Enforcing Read-Only Mounting of Removable Media
+7.Enabling Automatic Logouts
+8.Securing the grub2-Boot Loader
+9.Protecting Hard and Symbolic Links
+10.Securing SERVICES
+11.Securing Rpcbind
+12.Securing NETWORK ACCESS
+13.securing Using OPENSSL
+14.securing Using STUNNEL
+15.Checking INTEGRITY WITH AIDE
+16.Using FIREWALLS (firewalld)
+17)CONFIGURATION COMPLIANCE TOOLS AND VULNERABILITIES IN RHEL
+18)open-source VULNERABILITIES defending and scanning tools
+-nmap
+-fail2ban
+-psad with Bastille
+-logwatch
+19)Planning and Configuring package-update & security updates
+
+===================================================================================================================
+1.remove unnecessary services
+eg.
+#systemctl list-units | grep service
+#systemctl disable cups 
+
+2.Verifying Signed Packages
+#/etc/yum.reposd/yum-public.repo
+> gpgcheck=1
+
+3.passwords passphrase
+(must be min 8 characters with upper-case,lower-case,symbols,)
+# vi /etc/login.defs
+configure password strenth-checking
+#/etc/pam.d/passwd
+>password required pam_pwquality.so retry=3
+#/etc/security/pwquality.conf
+>minlen = 8
+>minclass = 4
+>maxsequence = 3
+>maxrepeat = 3
+
+configure account locking:
+i)three unsuccessful attempts and unlock that user after 10minutes,
+  auth section of the /etc/pam.d/system-auth and /etc/pam.d/password-auth files.
+	1 auth required pam_env.so
+	2 auth required pam_faillock.so preauth silent audit deny=3 unlock_time=600
+	3 auth sufficient pam_unix.so nullok try_first_pass
+	4 auth [default=die] pam_faillock.so authfail audit deny=3 unlock_time=600
+	5 auth requisite pam_succeed_if.so uid >= 1000 quiet_success
+	6 auth required pam_deny.so
+Lines number 2 and 4 have been added.
+Add the following line to the account section of both files specified in the previous step:
+>account required pam_faillock.so
+
+To unlock a user's account, run, as root, the following command:
+#faillock --user <username> --reset
+
+4.Configuring Password Aging:
+#chage -M 90 username (3-months expiry password)
+
+5.Locking Virtual Consoles Using vlock
+#yum install vlock
+#vlock  (lock currently active console)
+#vlock -a (option prevents switching to other virtual consoles.)
+
+6.Enforcing Read-Only Mounting of Removable Media
+To force all removable media to be mounted read-only,create a new udev configuration file named, for
+example, 80-readonly-removables.rules in the /etc/udev/rules.d/ directory with the following content:
+>SUBSYSTEM=="block",ATTRS{removable}=="1",RUN{program}="/sbin/blockdev --setro %N"
+
+# udevadm trigger
+# udevadm control --reload
+
+Disabling root SSH logins:
+#/etc/ssh/sshd_config,
+>PermitRootLogin no
+
+
+7.Enabling Automatic Logouts
+#/etc/profile
+>trap "" 1 2 3 15
+
+>export TMOUT=600
+>readonly TMOUT
+
+8.Securing the grub2-Boot Loader
+#grub2-setpassword
+Enter password:
+Confirm password:
+
+9.Protecting Hard and Symbolic Links
+# vi /usr/lib/sysctl.d/50-default.conf
+>fs.protected_hardlinks = 1
+>fs.protected_symlinks = 1
+
+10.SECURING SERVICES
+To limit exposure to attacks over the network, all services that are unused should be turned off.
+eg,cups — The default print server for Red Hat Enterprise Linux 7.
+cups-lpd — An alternative print server.
+xinetd — A super server that controls connections to a range of subordinate servers, such as
+gssftp and telnet.
+rpc-bind- if not using NFS.service
+>>check ports that are open and listening
+#netstat | grep LISTEN
+
+NOT to use Insecure Services which do not encrypt the authentication session:-
+eg. inherently insecure services=Telnet,rlogin,rsh,vsftpd,FTP,HTTP,and SMTP,network filesystems such as NFS and SMB,
+
+11.Securing rpcbind:
+Securing rpcbind only affects NFSv2 and NFSv3 implementations, since NFSv4 no longer requires it.
+i)Protect rpcbind:
+=>Protect rpcbind With TCP Wrappers
+only IP addresses when limiting access to the service. Avoid using host names, as they canbe forged by DNS poisoning and other methods.
+
+=>Protect rpcbind With firewalld:
+Below are two example firewalld rich language commands. The first allows TCP connections to the port
+111 (used by the rpcbind service) from the 192.168.0.0/24 network. The second allows TCP connections
+to the same port from the localhost. All other packets are dropped.
+~]# firewall-cmd --permanent --add-rich-rule='rule family="ipv4" port port="111" protocol="tcp" source
+address="192.168.0.0/24" invert="True" drop'
+~]# firewall-cmd --permanent --add-rich-rule='rule family="ipv4" port port="111" protocol="tcp" source
+address="127.0.0.1" accept'
+
+To similarly limit UDP traffic, use the following command:
+~]# firewall-cmd --permanent --add-rich-rule='rule family="ipv4" port port="111" protocol="udp" source
+address="192.168.0.0/24" invert="True" drop'
+
+ii)Securing rpc.mountd
+=>Securing rpc.mountd With TCP Wrappers
+only IP addresses when limiting access to the service. Avoid using host names, as they canbe forged by DNS poisoning and other methods.
+
+=>Protect rpc.mountd With firewalld:
+Below are two example firewalld rich language commands. The first allows mountd connections from
+the 192.168.0.0/24 network. The second allows mountd connections from the local host. All other
+packets are dropped.
+~]# firewall-cmd --permanent --add-rich-rule 'rule family="ipv4" source NOT address="192.168.0.0/24" service
+name="mountd" drop'
+~]# firewall-cmd --permanent --add-rich-rule 'rule family="ipv4" source address="127.0.0.1" service
+name="mountd" accept'
+
+SECURING SERVICES:
+i)Securing HTTP server:
+#/etc/httpd/conf/httpd.conf):
+>ServerTokens Prod
+>
+
+ii)Securing NGINX:
+>server_tokens off;
+
+Including Additional Security-related Headers:
+
+>add_header X-Frame-Options SAMEORIGIN;	(this option denies any page outside of your domain to frame any content served by NGINX, effectively mitigating clickjacking attacks.)
+>add_header X-Content-Type-Options nosniff;  (this option prevents MIME-type sniffing incertain older browsers.)
+>add_header X-XSS-Protection "1; mode=block";  (this option enables the Cross-SiteScripting (XSS) filtering, which prevents a browser from rendering potentially malicious content included in a response by NGINX.
+Disabling)
+
+iii)Configuring SSL:
+
+iv)configuring vsftpd:
+=>FTP Greeting Banner:
+#/etc/vsftpd/vsftpd.conf
+>banner_file=/etc/banners/ftp.msg
+#/etc/banners/ftp.msg
+>ftpd_banner=<insert_greeting_here>
+
+Anonymous Upload:
+#/etc/vsftpd/vsftpd.conf
+>anon_upload_enable=YES
+# mkdir /var/ftp/pub/upload
+# chmod 730 /var/ftp/pub/upload
+# ls -ld /var/ftp/pub/upload
+drwx-wx---. 2 root ftp 4096 Nov 14 22:57 /var/ftp/pub/upload
+
+User Accounts:
+#/etc/vsftpd/vsftpd.conf
+>local_enable=NO
+
+v)Securing Postfix:
+Limiting a Denial of Service Attack:
+#/etc/postfix/main.cf
+> <directive> = <value>
+directives that can be used for limiting a denial of service attack:
+>smtpd_client_connection_rate_limit	 (default its '0',which means a client can make as many connections per time unit as Postfix can accept.)
+>anvil_rate_time_unit 	 (This time unit is used for rate limit calculations. The default value is 60seconds.)
+>smtpd_client_event_limit_exceptions  	(Clients that are excluded from the connection and rate limit commands. By default, clients in trusted networks are excluded.
+>smtpd_client_message_rate_limit  	(The maximum number of message deliveries a client is allowed to request per time unit (regardless of whether or not Postfix actually accepts those messages).
+>default_process_limit  	(The default maximum number of Postfix child processes that provide a given service. This limit can be overruled for specific services in the master.cf file. By default the value is 100.
+>queue_minfree 		(By default, the Postfix SMTP server rejects MAIL FROM commands when the amount of free space is less than 1.5 times the message_size_limit. To specify a higher minimum free space limit, specify a queue_minfree value that is at least 1.5 times the message_size_limit. By default the queue_minfree value is 0.)
+>header_size_limit  (The maximum amount of memory in bytes for storing a message header. If a header is larger, the excess is discarded. By default the value is 102400.)
+>message_size_limit  (The maximum size in bytes of a message, including envelope information. By default the value is 10240000.)
+
+Disable Postfix Network Listening:
+#/etc/postfix/main.cf.
+>inet_interfaces = localhost   (This ensures that Postfix only accepts mail messages (such as cron job reports) from the local system and not from the network. This is the default setting and protects Postfix from a network attack.)
+
+Configuring Postfix to Use SASL:
+>yum install dovecot
+Setting Up Dovecot:
+#/etc/dovecot/conf.d/10-master.conf,
+	service auth {
+	unix_listener /var/spool/postfix/private/auth {
+	mode = 0660
+	user = postfix
+	group = postfix
+	 }
+	}
+
+configuration to set up Dovecot to listen for Postfix authentication requests through TCP:
+	service auth {
+	inet_listener {
+	port = 12345 (replaced by port no to be used)
+	 }
+	}
+
+Dovecot to provide the Postfix SMTP server with the plain and login authentication mechanisms:
+#/etc/dovecot/conf.d/10-master.conf,
+>auth_mechanisms = plain login
+
+Setting Up Postfix:-
+#/etc/postfix/main.cf
+1. Enable SMTP Authentication in the Postfix SMTP server:
+>smtpd_sasl_auth_enable = yes
+2. Instruct Postfix to use the Dovecot SASL implementation for SMTP Authentication:
+>smtpd_sasl_type = dovecot
+3. Provide the authentication path relative to the Postfix queue directory
+>smtpd_sasl_path = private/auth
+4.Specify SASL mechanisms that the Postfix SMTP server makes available to clients.
+>smtpd_sasl_security_options = noanonymous, noplaintext
+>smtpd_sasl_tls_security_options = noanonymous
+
+vi)Securing SSH:
+
+Cryptographic Login:
+#/etc/ssh/sshd_config
+>PubkeyAuthentication=yes
+>PasswordAuthentication=no
+>PermitRootLogin=NO
+>X11 forwarding=no
+
+SSH keys can be generated using
+#ssh-keygen  (it creates a 2048-bit RSA key set.)
+keys are stored directory
+#~/.ssh/
+generates 2 keys- id_rsa and id_rsa.pub
+The public key needs to be transferred to
+the system you are going to log in to.
+#ssh-copy-id -i [user@]server
+
+Protocol Version:
+#/etc/ssh/sshd_config
+>SSH-2 version
+
+Non-Default Port(CHANGING DEFAULT PORT OF SSHD 22 TO ANOTHER PORT)
+#/etc/ssh/sshd_config
+SELinux type:
+~]# semanage -a -t ssh_port_t -p tcp port_number
+
+vii)Securing PostgreSQL:
+
+~]# yum install postgresql-server
+initialize a database storage area on disk(database cluster.)
+~]$ initdb -D /home/postgresql/db1
+~]$ cat pg_hba.conf
+>local all all trust
+
+12.SECURING NETWORK ACCESS
+i)TCP Wrappers and Connection Banners:
+This example implements a banner for vsftpd.
+#/etc/banners/vsftpd
+	220-Hello, %c
+	220-All activity on ftp.example.com is logged.
+	220-Inappropriate use will result in your access privileges being removed.
+#/etc/hosts.allow
+>vsftpd : ALL : banners /etc/banners/
+#/etc/hosts.deny: (assume that anyone attempting to connect to port 23 (the Telnet port) on an FTPserver is a cracker.)
+>in.telnetd : ALL : severity emerg
+
+ii)Verifying Which Ports Are Listening:
+#netstat -pan -A inet,inet6 | grep -v ESTABLISHED  (ports are listening for connections from the network:
+#netstat -pan -I inet,inet6 | grep -v ESTABLISHED  (display only listening server sockets)
+#netstat -tlnw  (Active Internet connections (only servers))
+
+iii)Using ss for Open Ports Scan
+~]# ss -tlw    (It can display more TCP and state information than netstat.)
+~]# ss -plno -A tcp,udp,sctp
+
+iv)NMAP tool (This can be used to verify rules in firewalld from another remote machine connected through the network )
+#nmap -sT -O 192.168.122.65
+
+v)Using netstat and ss to Scan for Open SCTP Ports
+~]# netstat -plnS   (Active Internet connections (only servers))
+~]# netstat -nl -A inet,inet6 | grep 2500
+~]# ss -an | grep 2500
+
+vi)Disabling Source Routing
+~]# /sbin/sysctl -w net.ipv4.conf.all.accept_source_route=0  (The accept_source_route option causes network interfaces to accept packets with the Strict Source Routing (SSR) or Loose Source Routing (LSR) option set. The acceptance of source routed packets is controlled by sysctl settings. Issue the following command as root to drop packets with the SSR or LSR option set)
+
+Disabling the forwarding of packets should also be done in conjunction with the above when possible(disabling forwarding may interfere with virtualization).
+These commands disable forwarding of IPv4 and IPv6 packets on all interfaces
+ ~]# /sbin/sysctl -w net.ipv4.conf.all.forwarding=0
+~]# /sbin/sysctl -w net.ipv6.conf.all.forwarding=0
+
+These commands disable forwarding of all multicast packets on all interfaces:
+~]# /sbin/sysctl -w net.ipv4.conf.all.mc_forwarding=0
+~]# /sbin/sysctl -w net.ipv6.conf.all.mc_forwarding=0
+
+Accepting ICMP redirects has few legitimate uses. Disable the acceptance and sending of ICMPredirected packets unless specifically required.
+These commands disable acceptance of all ICMP redirected packets on all interfaces:
+~]# /sbin/sysctl -w net.ipv4.conf.all.accept_redirects=0
+~]# /sbin/sysctl -w net.ipv6.conf.all.accept_redirects=0
+
+This command disables acceptance of secure ICMP redirected packets on all interfaces:
+~]# /sbin/sysctl -w net.ipv4.conf.all.secure_redirects=0
+
+This command disables acceptance of all IPv4 ICMP redirected packets on all interfaces:
+~]# /sbin/sysctl -w net.ipv4.conf.all.send_redirects=0
+
+vii)Enabling Packet Forwarding:
+#/etc/sysctl.conf
+>net.ipv4.ip_forward = 1
+To load the changes
+#sbin/sysctl -p
+To check if IP forwarding is turned on
+#/sbin/sysctl net.ipv4.ip_forward
+
+13.USING OPENSSL
+OpenSSL is a library that provides cryptographic protocols to applications.
+#liststandard-commands,  (output a list of allstandard commands,)
+#list-message-digest-commands,  (message digest commands,)
+#list-cipher-commands  (cipher commands)
+#list-public-key-algorithms  (lists all supported public key algorithms,)
+
+i)Creating and Managing Encryption Keys
+#openssl genpkey -algorithm RSA -out privkey.pem
+For example, to create a 2048 bit RSA private key using 3 as the public exponent, issue the followingcommand:
+~]$ openssl genpkey -algorithm RSA -out privkey.pem -pkeyopt rsa_keygen_bits:2048 \ -pkeyopt rsa_keygen_pubexp:3
+
+To encrypt the private key as it is output using 128 bit AES and the passphrase “hello”, issue the following command:
+~]$ openssl genpkey -algorithm RSA -out privkey.pem -aes-128-cbc -pass pass:hello
+
+ii)Generating Certificates:
+Creating a Certificate Signing Request,
+#openssl req -new -key privkey.pem -out cert.csr
+	The two letter country code for your country
+	The full name of your state or province
+	City or Town
+	The name of your organization
+	The name of the unit within your organization
+	Your name or the host name of the system
+	Your email address
+
+To generate a self-signed certificate, valid for 366 days, issue a command in the following format:
+~]$ openssl req -new -x509 -key privkey.pem -out selfcert.pem -days 366
+
+iii)Creating a Certificate Using a Makefile
+The /etc/pki/tls/certs/ directory contains a Makefile which can be used to create certificates using the make command.
+~]$ make -f /etc/pki/tls/certs/Makefile
+~]$ cd /etc/pki/tls/certs/
+~]$ make
+
+iv)Verifying Certificates;
+~]$ openssl verify cert1.pem cert2.pem
+~]$ openssl verify -untrusted untrusted.pem -CAfile cacert.pem cert.pem
+
+v)Encrypting and Decrypting a File
+Using RSA Keys
+To encrypt a file called plaintext, issue a command as follows:
+~]$ openssl pkeyutl -in plaintext -out cyphertext -inkey privkey.pem
+The default format for keys and certificates is PEM. If required, use the -keyform DER option to specify the DER key format.
+To specify a cryptographic engine, use the -engine option as follows:
+~]$ openssl pkeyutl -in plaintext -out cyphertext -inkey privkey.pem -engine id
+Where id is the ID of the cryptographic engine. To check the availability of an engine, issue the following command:
+~]$ openssl engine -t
+To sign a data file called plaintext, issue a command as follows:
+~]$ openssl pkeyutl -sign -in plaintext -out sigtext -inkey privkey.pem
+To verify a signed data file and to extract the data, issue a command as follows:
+~]$ openssl pkeyutl -verifyrecover -in sig -inkey key.pem
+To verify the signature, for example using a DSA key, issue a command as follows:
+~]$ openssl pkeyutl -verify -in file -sigfile sig -inkey key.pem
+
+vi)Using Symmetric Algorithms
+To list available symmetric encryption algorithms, execute the enc command with an unsupported option, such as -l:
+~]$ openssl enc -l
+To specify an algorithm, use its name as an option. For example, to use the aes-128-cbc algorithm, use the following syntax:
+~]$ openssl enc -aes-128-cbc
+To encrypt a file called plaintext using the aes-128-cbc algorithm, enter the following command:
+~]$ openssl enc -aes-128-cbc -in plaintext -out plaintext.aes-128-cbc
+To decrypt the file obtained in the previous example, use the -d option as in the following example:
+~]$ openssl enc -aes-128-cbc -d -in plaintext.aes-128-cbc -out plaintext
+
+14.USING STUNNEL,
+Installing stunnel
+~]# yum install stunnel
+
+i)Configuring stunnel as a TLS Wrapper
+need a valid certificate for stunnel regardless of what service you use it with. If you do not have a suitable certificate, you can apply to a Certificate Authority to obtain one, or you can create a self-signed certificate.
+
+ii)self-signed certificate for stunnel:
+~]# cd /etc/pki/tls/certs/
+certs]# make stunnel.pem
+Answer all of the questions to complete the process.
+
+#/etc/stunnel/stunnel.conf   (content configures stunnel as a TLS wrapper:)
+
+	cert = /etc/pki/tls/certs/stunnel.pem
+	; Allow only TLS, thus avoiding SSL
+	sslVersion = TLSv1
+	chroot = /var/run/stunnel
+	setuid = nobody
+	setgid = nobody
+	pid = /stunnel.pid
+	socket = l:TCP_NODELAY=1
+	socket = r:TCP_NODELAY=1
+	[service_name]
+	accept = port
+	connect = port
+	TIMEOUTclose = 0
+
+Alternatively, you can avoid SSL by replacing the line containing sslVersion = TLSv1 with the following lines:
+>options = NO_SSLv2
+>options = NO_SSLv3
+
+Securing CUPS
+To configure stunnel as a TLS wrapper for CUPS, use the following values:
+	[cups]
+	accept = 632
+	connect = 631
+
+Create the chroot directory and give the user specified by the setuid option write access to it.
+To do so, enter the following commands as root:
+~]# mkdir /var/run/stunnel
+~]# chown nobody:nobody /var/run/stunnel
+
+To start stunnel, enter the following command as root:
+~]# stunnel /etc/stunnel/stunnel.conf
+To terminate stunnel, kill the process by running the following command as root:
+~]# kill `cat /var/run/stunnel/stunnel.pid`
+restart it again for your changes to take effect.
+
+Creating GPG Keys Using the Command Line:
+~]$ gpg2 --gen-key
+
+15.CHECKING INTEGRITY WITH AIDE
+
+~]# yum install aide
+To generate an initial database, enter the following command as root:
+~]# aide --init
+To start using the database, remove the .new substring from the initial database file name:
+~]# mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+
+i)Performing Integrity Checks;
+~]# aide --check
+ii)Updating an AIDE Database
+~]# aide --update
+
+
+16.USING FIREWALLS (firewalld);
+
+#yum install firewalld
+~]# systemctl unmask firewalld
+~]# systemctl start firewalld
+~]# systemctl enable firewalld
+~]# systemctl stop firewalld
+
+16.1)controlling services using CLI:
+
+#firewall-cmd --state				(Viewing the Current Status of firewalld)
+#firewall-cmd --list-all			((To list all the relevant information for the default zone))
+~]# firewall-cmd --list-all --zone=home		(To list all the relevant information for the particular zone)
+~]# firewall-cmd --list-services		(to list all the services)
+~]# firewall-cmd --zone=zone-name --list-all	(to list out all zone names)
+~]# firewall-cmd --get-services			(list of predefined services)
+
+Disabling All Traffic in Case of Emergency using CLI
+~]# firewall-cmd --panic-on
+~]# firewall-cmd --panic-off
+~]# firewall-cmd --query-panic  (to check panic mode is ON/OFF)
+
+~]# firewall-cmd --add-service=<service-name>	(Add the service to the allowed services:)
+~]# firewall-cmd --runtime-to-permanent		(Make the new settings persistent:)
+
+~]$ firewall-cmd --new-service=service-name
+create new service:
+~]# cp /usr/lib/firewalld/services/service-name.xml /etc/firewalld/services/service-name.xml
+~]$ firewall-cmd --new-service-from-file=service-name.xml	(To add a new service using a local file,)
+
+16.2)Controlling Ports using CLI:
+~]# firewall-cmd --list-ports 				(list all allowed ports)
+~]# firewall-cmd --add-port=port-number/port-type	(Add a port to the allowed ports to open it for incoming traffic)
+~]# firewall-cmd --runtime-to-permanent			(Make the new settings persistent:)
+
+16.3)Closing a Port
+~]# firewall-cmd --list-ports
+~]# firewall-cmd --remove-port=port-number/port-type
+~]# firewall-cmd --runtime-to-permanent
+
+16.4)WORKING WITH ZONES
+~]# firewall-cmd --get-zones
+~]# firewall-cmd --list-all-zones
+~]# firewall-cmd --zone=zone-name --list-all
+
+16.5)Changing the Default Zone
+~]# firewall-cmd --get-default-zone			(Display the current default zone:)
+~]# firewall-cmd --set-default-zone zone-name		(Set the new default zone:)
+
+16.6)Assigning a Network Interface to a Zone
+~]# firewall-cmd --get-active-zones		(List the active zones and the interfaces assigned to them:)
+~]# firewall-cmd --zone=zone-name --change-interface=<interface-name>  (Assign the interface to a different zone:)
+
+16.7)Using Zone Targets to Set Default Behavior for Incoming Traffic
+~]$ firewall-cmd --zone=zone-name --list-all	(List the information for the specific zone to see the default target:)
+~]# firewall-cmd --zone=zone-name --set-target=<default|ACCEPT|REJECT|DROP>		(Set a new target in the zone:)
+
+16.8)Adding a Source
+1To set the source in the current zone:
+~]# firewall-cmd --add-source=<source>
+2. To set the source IP address for a specific zone:
+~]# firewall-cmd --zone=zone-name --add-source=<source>
+The following procedure allows all incoming traffic from 192.168.2.15 in the trusted zone:
+1. List all available zones:
+~]# firewall-cmd --get-zones
+2. Add the source IP to the trusted zone in the permanent mode:
+~]# firewall-cmd --zone=trusted --add-source=192.168.2.15
+3. Make the new settings persistent:
+~]# firewall-cmd --runtime-to-permanent
+
+16.9)Removing a Source
+1. List allowed sources for the required zone:
+~]# firewall-cmd --zone=zone-name --list-sources
+2. Remove the source from the zone permanently:
+~]# firewall-cmd --zone=zone-name --remove-source=<source>
+3. Make the new settings persistent:
+~]# firewall-cmd --runtime-to-permanent
+
+16.10)Adding a Source Port
+To add a source port:
+~]# firewall-cmd --zone=zone-name --add-source-port=<port-name>/<tcp|udp|sctp|dccp>
+
+16.11)Removing a Source Port
+To remove a source port:
+~]# firewall-cmd --zone=zone-name --remove-source-port=<port-name>/<tcp|udp|sctp|dccp>
+
+16.12)Using Zones and Sources to Allow a Service for Only a Specific Domain
+List all available zones:
+~]# firewall-cmd --get-zones
+block dmz drop external home internal public trusted work
+2. Add the source to the trusted zone to route the traffic originating from the source through the
+zone:
+~]# firewall-cmd --zone=trusted --add-source=192.168.1.0/24
+3. Add the http service in the trusted zone:
+~]# firewall-cmd --zone=trusted -add-service=http
+4. Make the new settings persistent:
+~]# firewall-cmd --runtime-to-permanent
+5. Check that the trusted zone is active and that the service is allowed in it:
+~]# firewall-cmd --zone=trusted --list-all
+	trusted (active)
+	target: ACCEPT
+	sources: 192.168.1.0/24
+	services: http
+
+16.13)PORT FORWARDING
+Adding a Port to Redirect
+~]# firewall-cmd --add-forward-port=port=port-number:proto=tcp|udp|sctp|dccp:toport=port-number
+1. Add the port to be forwarded:
+~]# firewall-cmd --add-forward-port=port=port-number:proto=tcp|udp:toport=portnumber:toaddr=IP/mask
+2. Enable masquerade:
+~]# firewall-cmd --add-masquerade
+
+Example 5.1. Redirecting TCP Port 80 to Port 88 on the Same Machine
+To redirect the port:
+1. Redirect the port 80 to port 88 for TCP traffic:
+~]# firewall-cmd --add-forward-port=port=80:proto=tcp:toport=88
+2. Make the new settings persistent:
+~]# firewall-cmd --runtime-to-permanent
+3. Check that the port is redirected:
+~]# firewall-cmd --list-all
+
+16.14)Removing a Redirected Port
+~]# firewall-cmd --remove-forward-port=port=port-number:proto=<tcp|udp>:toport=portnumber:toaddr=<IP/mask>
+1. Remove the forwarded port:
+~]# firewall-cmd --remove-forward-port=port=port-number:proto=<tcp|udp>:toport=portnumber:
+toaddr=<IP/mask>
+2. Disable masquerade:
+~]# firewall-cmd --remove-masquerade
+
+Example. Removing TCP Port 80 forwarded to Port 88 on the Same Machine
+To remove the port redirection:
+1. List redirected ports:
+~]# firewall-cmd --list-forward-ports
+port=80:proto=tcp:toport=88:toaddr=
+2. Remove the redirected port from the firewall::
+~]# firewall-cmd --remove-forward-port=port=80:proto=tcp:toport=88:toaddr=
+3. Make the new settings persistent:
+~]# firewall-cmd --runtime-to-permanent
+
+16.15)CONFIGURING IP ADDRESS MASQUERADING
+
+~]# firewall-cmd --zone=external --query-masquerade
+~]# firewall-cmd --zone=external --add-masquerade
+~]# firewall-cmd --zone=external --remove-masquerade
+
+16.16)MANAGING ICMP REQUESTS
+To list all available ICMP types:
+~]# firewall-cmd --get-icmptypes
+The ICMP request can be used by IPv4, IPv6, or by both protocols. To see for which protocol the ICMP request is used:
+~]# firewall-cmd --info-icmptype=<icmptype>
+The status of an ICMP request shows yes if the request is currently blocked or no if it is not. To see if an ICMP request is currently blocked:
+~]# firewall-cmd --query-icmp-block=<icmptype>
+
+16.17)Blocking or Unblocking ICMP Requests
+To see if an ICMP request is currently blocked:
+~]# firewall-cmd --query-icmp-block=<icmptype>
+To block an ICMP request:
+~]# firewall-cmd --add-icmp-block=<icmptype>
+To remove the block for an ICMP request:
+~]# firewall-cmd --remove-icmp-block=<icmptype>
+
+To block and drop all ICMP requests:
+1. Set the target of your zone to DROP:
+~]# firewall-cmd --set-target=DROP
+2. Make the new settings persistent:
+~]# firewall-cmd --runtime-to-permanent
+
+To block and drop certain ICMP requests and allow others:
+1. Set the target of your zone to DROP:
+~]# firewall-cmd --set-target=DROP
+2. Add the ICMP block inversion to block all ICMP requests at once:
+~]# firewall-cmd --add-icmp-block-inversion
+3. Add the ICMP block for those ICMP requests that you want to allow:
+~]# firewall-cmd --add-icmp-block=<icmptype>
+4. Make the new settings persistent:
+~]# firewall-cmd --runtime-to-permanent
+
+To revert this to a fully permissive setting:
+1. Set the target of your zone to default or ACCEPT:
+~]# firewall-cmd --set-target=default
+2. Remove all added blocks for ICMP requests:
+~]# firewall-cmd --remove-icmp-block=<icmptype>
+3. Remove the ICMP block inversion:
+~]# firewall-cmd --remove-icmp-block-inversion
+
+Configuring IP Set Options with the Command-Line Client:
+To list the IP sets known to firewalld in the permanent environment, use the following command as root:
+~]# firewall-cmd --permanent --get-ipsets
+To add a new IP set, use the following command using the permanent environment as root:
+~]# firewall-cmd --permanent --new-ipset=test --type=hash:net
+
+16.18)CONFIGURING LOGGING FOR DENIED PACKETS
+With the LogDenied option in the firewalld, it is possible to add a simple logging mechanism for denied packets
+To list the actual LogDenied setting with firewall-cmd, use the following command as root:
+~]# firewall-cmd --get-log-denied
+off
+To change the LogDenied setting, use the following command as root:
+~]# firewall-cmd --set-log-denied=all
+    success
+
+17)CONFIGURATION COMPLIANCE TOOLS AND VULNERABILITIES IN RHEL:
+
+i)SCAP Workbench - The scap-workbench graphical utility is designed to perform configuration and vulnerability scans on a single local or remote system. You can also use it to generate security reports based on these scans and evaluations.
+ii)OpenSCAP - The OpenSCAP library, with the accompanying oscap command-line utility, is designed to perform configuration and vulnerability scans on a local system, to validate configuration compliance content, and to generate reports and guides based on these scans and evaluations.
+iii)SCAP Security Guide (SSG) - The scap-security-guide package provides the latest collection of security policies for Linux systems. The guidance consists of a catalog of practical hardening advice, linked to government requirements where applicable. The project bridges the gap between generalized policy requirements and specific implementation guidelines.
+iv)Script Check Engine (SCE) - SCE is an extension to the SCAP protocol that enables administrators to write their security content using a scripting language, such as Bash, Python, and Ruby. The SCE extension is provided in the openscap-engine-sce package. The SCE itself is not part of the SCAP environment.
+
+
+VULNERABILITY SCANNING
+i)Red Hat Security Advisories OVAL Feed
+
+Scanning the System for Vulnerabilities
+1. Install the openscap-scanner package:
+~]# yum install openscap-scanner
+2. Download the latest RHSA OVAL definitions for your system, for example:
+~]# wget -O - https://www.redhat.com/security/data/oval/v2/RHEL7/rhel-7.oval.xml.bz2 |
+bzip2 --decompress > rhel-7.oval.xml
+3. Scan the system for vulnerabilities and save results to the vulnerability.html file:
+~]# oscap oval eval --report vulnerability.html rhel-7.oval.xml
+Verification
+1. Check the results in a browser of your choice, for example:
+~]$ firefox vulnerability.html &
+
+Scanning Remote Systems for Vulnerabilities
+You can check also remote systems for vulnerabilities with the OpenSCAP scanner using the oscap-ssh tool over the SSH protocol.
+Prerequisites
+>The openscap-scanner package is installed on the remote systems.
+>The SSH server is running on the remote systems.
+Procedure
+1. Install the openscap-utils package:
+~]# yum install openscap-utils
+2. Download the latest RHSA OVAL definitions for your system:
+~]# wget -O - https://www.redhat.com/security/data/oval/v2/RHEL7/rhel-7.oval.xml.bz2 |
+bzip2 --decompress > rhel-7.oval.xml
+3. Scan a remote system with the machine1 host name, SSH running on port 22, and the joesec
+user name for vulnerabilities and save results to the remote-vulnerability.html file:
+~]# oscap-ssh joesec@machine1 22 oval eval --report remote-vulnerability.html rhel-7.oval.xml
+
+
+18)open-source VULNERABILITIES defending and scanning tools
+
+i)NMAP to verify open-ports:-
+#yum install nmap
+#yum groupinstall "Development Tools"
+#wget https://nmap.org/dist/nmap-7.40.tgz
+#tar -xvf nmap-7.40.tgz
+#cd nmap-7.40
+#./configure
+#make
+#make install
+to verify open-ports
+#sudo <ipaddress>
+
+ii)Protect SSH With Fail2Ban:
+#sudo yum install epel-release
+#sudo yum install fail2ban
+#sudo systemctl enable fail2ban
+
+Configure Local Settings
+directory /etc/fail2ban/jail.conf or /etc/fail2ban/jail.local
+# vi /etc/fail2ban/jail.local
+paste
+		[DEFAULT]
+	# Ban hosts for one hour:
+	bantime = 3600
+	# Override /etc/fail2ban/jail.d/00-firewalld.conf:
+	banaction = iptables-multiport
+	[sshd]
+	enabled = true
+#sudo systemctl restart fail2ban
+#sudo fail2ban-client status
+#sudo fail2ban-client status sshd
+
+Default Settings for All Jails
+#sudo nano /etc/fail2ban/jail.conf
+	ignoreip = 127.0.0.1/8
+	bantime = 600
+	findtime = 600
+	maxretry = 3
+	destemail = root@localhost
+	sendername = Fail2Ban
+	mta = sendmail
+	action = $(action_)s
+
+Settings for Individual Jails
+	[sshd]
+
+	port    = ssh
+	logpath = %(sshd_log)s
+
+
+serving a website using Nginx
+# vi /etc/fail2ban/jail.local 
+
+	[DEFAULT]
+	# Ban hosts for one hour:
+	bantime = 3600
+
+	# Override /etc/fail2ban/jail.d/00-firewalld.conf:
+	banaction = iptables-multiport
+
+	[sshd]
+	enabled = true
+
+	[nginx-http-auth]
+	enabled = true
+#sudo systemctl restart fail2ban
+
+Monitor Fail2ban Logs and Firewall Configuration
+#sudo systemctl status fail2ban
+#sudo journalctl -b -u fail2ban
+#sudo fail2ban-client status
+#sudo fail2ban-client status jail_name
+
+Fail2ban’s log
+#sudo tail -F /var/log/fail2ban.log
+ist the current rules configured for iptables:
+#sudo iptables -L
+Show iptables rules in a format that reflects the commands necessary to enable each rule:
+#sudo iptables -S
+
+
+iii)psad with Bastille
+#adduser service
+#passwd service
+#mkdir /downloads
+#cd /downloads
+Installing PSAD
+#wget http://www.cipherdyne.com/psad/download/psad-2.4.6.tar.gz
+#tar xfz psad-2.4.6.tar.gz
+#cd psad-2.4.6
+#./install.pl
+
+Installing Bastille
+#wget https://downloads.sourceforge.net/project/bastille-linux/bastille-linux/3.2.1/Bastille-3.2.1-0.1.noarch.rpm
+#rpm -ivh Bastille-3.2.1-0.1.noarch.rpm 
+Running Bastille
+#/usr/sbin/bastille -c
+Interactive prompt response
+
+#vi /etc/ssh/sshd_config
+	#Protocol 2,1 -> Protocol 2
+	#PermitRootLogin yes -> PermitRootLogin no
+	#PermitEmptyPasswords no -> PermitEmptyPasswords no
+	#Banner /some/path -> Banner /etc/issue
+#reboot
+
+iv)logwatch:
+#$@ yum install logwatch
+#$ cd /usr/share/logwatch/defaults.conf/services
+#vi zz-disk_space.conf
+
+uncomment lines:-
+	#New disk report options
+	#Uncomment this to show the home directory sizes
+	$show_home_dir_sizes = 1
+	$home_dir = "/home"
+
+	#Uncomment this to show the mail spool size
+	$show_mail_dir_sizes = 1
+	$mail_dir = "/var/spool/mail"
+
+#Uncomment this to show the system directory sizes /opt /usr/ /var/log
+$show_disk_usage = 1
+
+#$ nano http.conf
+	# Set flag to 1 to enable ignore
+	# or set to 0 to disable
+	$HTTP_IGNORE_ERROR_HACKS = 1
+#cd /usr/share/logwatch/defaults.conf/
+#$ nano logwatch.conf
+	# Default person to mail reports to. Can be a local account or a
+	# complete email address. Variable Print should be set to No to
+	# enable mail feature.
+	#MailTo = root
+	MailTo = linuxadmins@mycompany.com
+
+#$ sudo logwatch
+
+19)planning and configuring package-update & security updates
+>yum check-update --security
+>yum update --security
+>yum update
